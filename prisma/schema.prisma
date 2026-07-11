@@ -1,0 +1,131 @@
+// Domain mirrors the original Laravel app, modernised:
+//  - English-cased model names but original Indonesian semantics preserved
+//  - Roles: ADMIN (Dinas), UMKM (seller), BUYER (default)
+//  - Soft money modelled as Int (rupiah, no fractional cents)
+//
+// Note: SQLite (the dev database) does not support Prisma `enum`. The Role and
+// OrderStatus values are stored as plain strings and constrained at the
+// application layer via src/lib/enums.ts. Switching to PostgreSQL/MySQL later
+// is a one-line datasource change plus reintroducing real enums if desired.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Region {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  users User[]
+  umkms Umkm[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("BUYER") // see src/lib/enums.ts → Role
+  phone     String?
+  address   String?
+  regionId  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  region    Region?   @relation(fields: [regionId], references: [id])
+  umkm      Umkm?     @relation("UmkmOwner")
+  orders    Order[]
+  newsPosts News[]
+}
+
+model Umkm {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  address     String
+  whatsapp    String   // E.164-ish, e.g. 6281234567890 — used for wa.me links
+  latitude    Float
+  longitude   Float
+  photoUrl    String?
+  regionId    Int
+  ownerId     Int      @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  region   Region    @relation(fields: [regionId], references: [id])
+  owner    User      @relation("UmkmOwner", fields: [ownerId], references: [id])
+  products Product[]
+  orders   Order[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  umkmId      Int
+  name        String
+  description String?
+  price       Int
+  stock       Int      @default(0)
+  imageUrl    String?
+  variety     String?
+  processing  String?
+  roastLevel  String?
+  flavorNotes String?
+  weightGram  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  umkm        Umkm        @relation(fields: [umkmId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id        Int      @id @default(autoincrement())
+  buyerId   Int
+  umkmId    Int
+  status    String   @default("PENDING") // see src/lib/enums.ts → OrderStatus
+  total     Int
+  note      String?
+  orderedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer User        @relation(fields: [buyerId], references: [id])
+  umkm  Umkm        @relation(fields: [umkmId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        Int @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  unitPrice Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model News {
+  id          Int       @id @default(autoincrement())
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  content     String
+  coverUrl    String?
+  published   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  authorId    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([published, publishedAt])
+}

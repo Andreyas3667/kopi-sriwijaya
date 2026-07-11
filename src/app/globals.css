@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "leaflet/dist/leaflet.css";
+
+html, body { height: 100%; }
+body { @apply bg-coffee-50 text-coffee-900; }
+
+/* Tweaks for Leaflet popups so they match the app palette */
+.leaflet-popup-content-wrapper {
+  @apply rounded-lg shadow-lg;
+}
+.leaflet-popup-content {
+  @apply m-3 text-sm;
+}
